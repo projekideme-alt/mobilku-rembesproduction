@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>REMOTE ONLINE - REMBES PRODUCTION</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js" type="text/javascript"></script>
+    <style>
+        body { font-family: sans-serif; text-align: center; background: #1a1a1a; color: white; margin: 0; padding: 20px; user-select: none; }
+        .status { padding: 10px; margin-bottom: 20px; border-radius: 10px; font-weight: bold; border: 2px solid #555; }
+        .connected { background: #1b5e20; border-color: #4CAF50; color: #4CAF50; }
+        .disconnected { background: #b71c1c; border-color: #f44336; color: #f44336; }
+        .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; max-width: 350px; margin: auto; }
+        button { width: 100%; aspect-ratio: 1/1; border-radius: 20px; border: none; background: #333; color: white; font-weight: bold; font-size: 14px; cursor: pointer; -webkit-tap-highlight-color: transparent; box-shadow: 0 4px #222; }
+        button:active { background: #00ff00; color: black; transform: translateY(4px); box-shadow: 0 0 #222; }
+        .stop { background: #f44336; box-shadow: 0 4px #b71c1c; }
+        .diag { background: #444; }
+        .mode-section { margin-bottom: 20px; display: flex; justify-content: center; gap: 10px; }
+        .btn-mode { height: 50px; width: 120px; background: #2196F3; aspect-ratio: auto; box-shadow: 0 4px #0d47a1; }
+    </style>
+</head>
+<body>
+
+    <h2 style="color:#FF9800">REMBES ONLINE</h2>
+    <div id="statusBox" class="status disconnected">MENGHUBUNGKAN KE CLOUD...</div>
+
+    <div class="mode-section">
+        <button class="btn-mode" onclick="sendCmd('auto')">AUTO MODE</button>
+        <button class="btn-mode" onclick="sendCmd('manual')" style="background:#757575">MANUAL</button>
+    </div>
+
+    <div class="grid">
+        <button class="diag" ontouchstart="sendCmd('fsl')" ontouchend="sendCmd('stop')">SERONG <br>KIRI</button>
+        <button ontouchstart="sendCmd('up')" ontouchend="sendCmd('stop')">MAJU</button>
+        <button class="diag" ontouchstart="sendCmd('fsr')" ontouchend="sendCmd('stop')">SERONG <br>KANAN</button>
+        
+        <button ontouchstart="sendCmd('left')" ontouchend="sendCmd('stop')">KIRI</button>
+        <button class="stop" onclick="sendCmd('stop')">STOP</button>
+        <button ontouchstart="sendCmd('right')" ontouchend="sendCmd('stop')">KANAN</button>
+        
+        <button class="diag" ontouchstart="sendCmd('bsl')" ontouchend="sendCmd('stop')">MUNDUR <br>L</button>
+        <button ontouchstart="sendCmd('down')" ontouchend="sendCmd('stop')">MUNDUR</button>
+        <button class="diag" ontouchstart="sendCmd('bsr')" ontouchend="sendCmd('stop')">MUNDUR <br>R</button>
+    </div>
+
+    <script>
+        // PENGATURAN KANTOR POS (MQTT)
+        const MQTT_BROKER = "broker.emqx.io";
+        const MQTT_PORT = 8083; 
+        const MQTT_TOPIC = "rembes/robot/kendali"; // INI HARUS SAMA DENGAN DI ESP32
+        const CLIENT_ID = "web_rembes_" + Math.random().toString(16).substr(2, 5);
+
+        let client = new Paho.MQTT.Client("wss://" + MQTT_BROKER + ":" + MQTT_PORT + "/mqtt", CLIENT_ID);
+
+        client.onConnectionLost = (responseObject) => {
+            document.getElementById("statusBox").innerHTML = "KONEKSI TERPUTUS!";
+            document.getElementById("statusBox").className = "status disconnected";
+            setTimeout(connectMQTT, 2000);
+        };
+
+        function connectMQTT() {
+            client.connect({
+                onSuccess: () => {
+                    document.getElementById("statusBox").innerHTML = "CLOUD TERHUBUNG (ONLINE)";
+                    document.getElementById("statusBox").className = "status connected";
+                },
+                useSSL: true,
+                onFailure: (e) => { console.log(e); }
+            });
+        }
+
+        function sendCmd(cmd) {
+            if (client.isConnected()) {
+                let message = new Paho.MQTT.Message(cmd);
+                message.destinationName = MQTT_TOPIC;
+                client.send(message);
+            }
+        }
+
+        connectMQTT();
+    </script>
+</body>
+</html>
