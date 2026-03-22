@@ -1,80 +1,65 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>REMOTE ONLINE - REMBES PRODUCTION</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js" type="text/javascript"></script>
+    <title>Rembes Online Control</title>
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
     <style>
         body { font-family: sans-serif; text-align: center; background: #1a1a1a; color: white; margin: 0; padding: 20px; user-select: none; }
-        .status { padding: 10px; margin-bottom: 20px; border-radius: 10px; font-weight: bold; border: 2px solid #555; }
-        .connected { background: #1b5e20; border-color: #4CAF50; color: #4CAF50; }
-        .disconnected { background: #b71c1c; border-color: #f44336; color: #f44336; }
-        .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; max-width: 350px; margin: auto; }
-        button { width: 100%; aspect-ratio: 1/1; border-radius: 20px; border: none; background: #333; color: white; font-weight: bold; font-size: 14px; cursor: pointer; -webkit-tap-highlight-color: transparent; box-shadow: 0 4px #222; }
-        button:active { background: #00ff00; color: black; transform: translateY(4px); box-shadow: 0 0 #222; }
-        .stop { background: #f44336; box-shadow: 0 4px #b71c1c; }
-        .diag { background: #444; }
-        .mode-section { margin-bottom: 20px; display: flex; justify-content: center; gap: 10px; }
-        .btn-mode { height: 50px; width: 120px; background: #2196F3; aspect-ratio: auto; box-shadow: 0 4px #0d47a1; }
+        .status-bar { background: #d32f2f; padding: 15px; border-radius: 10px; margin-bottom: 20px; font-weight: bold; font-size: 14px; }
+        .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; max-width: 320px; margin: auto; }
+        .mode-container { display: flex; justify-content: space-around; margin-bottom: 20px; }
+        button { width: 100%; aspect-ratio: 1/1; border-radius: 20px; border: none; background: #333; color: white; font-weight: bold; font-size: 12px; cursor: pointer; transition: 0.1s; touch-action: manipulation; }
+        button:active { background: #00ff00; color: black; transform: scale(0.95); }
+        .btn-mode { height: 50px; aspect-ratio: auto; width: 45%; background: #2196F3; }
+        .btn-stop { background: #f44336; font-size: 16px; }
+        .btn-diag { background: #444; }
     </style>
 </head>
 <body>
+    <h2 style="color: #FF9800;">REMBES ONLINE</h2>
+    <div id="status" class="status-bar">MENGHUBUNGKAN KE CLOUD...</div>
 
-    <h2 style="color:#FF9800">REMBES ONLINE</h2>
-    <div id="statusBox" class="status disconnected">MENGHUBUNGKAN KE CLOUD...</div>
-
-    <div class="mode-section">
-        <button class="btn-mode" onclick="sendCmd('auto')">AUTO MODE</button>
-        <button class="btn-mode" onclick="sendCmd('manual')" style="background:#757575">MANUAL</button>
+    <div class="mode-container">
+        <button class="btn-mode" onclick="send('auto')">AUTO MODE</button>
+        <button class="btn-mode" onclick="send('manual')" style="background: #607d8b;">MANUAL</button>
     </div>
 
     <div class="grid">
-        <button class="diag" ontouchstart="sendCmd('fsl')" ontouchend="sendCmd('stop')">SERONG <br>KIRI</button>
-        <button ontouchstart="sendCmd('up')" ontouchend="sendCmd('stop')">MAJU</button>
-        <button class="diag" ontouchstart="sendCmd('fsr')" ontouchend="sendCmd('stop')">SERONG <br>KANAN</button>
+        <button class="btn-diag" ontouchstart="send('fsl')" ontouchend="send('stop')">SERONG KIRI</button>
+        <button ontouchstart="send('up')" ontouchend="send('stop')">MAJU</button>
+        <button class="btn-diag" ontouchstart="send('fsr')" ontouchend="send('stop')">SERONG KANAN</button>
         
-        <button ontouchstart="sendCmd('left')" ontouchend="sendCmd('stop')">KIRI</button>
-        <button class="stop" onclick="sendCmd('stop')">STOP</button>
-        <button ontouchstart="sendCmd('right')" ontouchend="sendCmd('stop')">KANAN</button>
+        <button ontouchstart="send('left')" ontouchend="send('stop')">KIRI</button>
+        <button class="btn-stop" onclick="send('stop')">STOP</button>
+        <button ontouchstart="send('right')" ontouchend="send('stop')">KANAN</button>
         
-        <button class="diag" ontouchstart="sendCmd('bsl')" ontouchend="sendCmd('stop')">MUNDUR <br>L</button>
-        <button ontouchstart="sendCmd('down')" ontouchend="sendCmd('stop')">MUNDUR</button>
-        <button class="diag" ontouchstart="sendCmd('bsr')" ontouchend="sendCmd('stop')">MUNDUR <br>R</button>
+        <button class="btn-diag" ontouchstart="send('bsl')" ontouchend="send('stop')">MUNDUR L</button>
+        <button ontouchstart="send('down')" ontouchend="send('stop')">MUNDUR</button>
+        <button class="btn-diag" ontouchstart="send('bsr')" ontouchend="send('stop')">MUNDUR R</button>
     </div>
 
     <script>
-        // PENGATURAN KANTOR POS (MQTT)
-        const MQTT_BROKER = "broker.emqx.io";
-        const MQTT_PORT = 8083; 
-        const MQTT_TOPIC = "rembes/robot/kendali"; // INI HARUS SAMA DENGAN DI ESP32
-        const CLIENT_ID = "web_rembes_" + Math.random().toString(16).substr(2, 5);
+        // Koneksi ke Broker MQTT via WebSocket
+        const client = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
+        const statusDiv = document.getElementById('status');
 
-        let client = new Paho.MQTT.Client("wss://" + MQTT_BROKER + ":" + MQTT_PORT + "/mqtt", CLIENT_ID);
+        client.on('connect', () => {
+            statusDiv.innerText = 'TERHUBUNG KE CLOUD (READY)';
+            statusDiv.style.background = '#4CAF50';
+        });
 
-        client.onConnectionLost = (responseObject) => {
-            document.getElementById("statusBox").innerHTML = "KONEKSI TERPUTUS!";
-            document.getElementById("statusBox").className = "status disconnected";
-            setTimeout(connectMQTT, 2000);
-        };
+        client.on('offline', () => {
+            statusDiv.innerText = 'OFFLINE - CEK INTERNET';
+            statusDiv.style.background = '#d32f2f';
+        });
 
-        function connectMQTT() {
-            client.connect({
-                onSuccess: () => {
-                    document.getElementById("statusBox").innerHTML = "CLOUD TERHUBUNG (ONLINE)";
-                    document.getElementById("statusBox").className = "status connected";
-                },
-                useSSL: true,
-                onFailure: (e) => { console.log(e); }
-            });
+        function send(cmd) {
+            client.publish('rembes/robot/control', cmd);
         }
-
-        function sendCmd(cmd) {
-            if (client.isConnected()) {
-                let message = new Paho.MQTT.Message(cmd);
-                message.destinationName = MQTT_TOPIC;
-                client.send(message);
-            }
-        }
+    </script>
+</body>
+</html>
 
         connectMQTT();
     </script>
