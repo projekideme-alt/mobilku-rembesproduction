@@ -1,62 +1,51 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Rembes Online Control</title>
+    <title>REMBES CONTROL</title>
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
     <style>
-        body { font-family: sans-serif; text-align: center; background: #1a1a1a; color: white; margin: 0; padding: 20px; user-select: none; }
-        .status-bar { background: #d32f2f; padding: 15px; border-radius: 10px; margin-bottom: 20px; font-weight: bold; font-size: 14px; }
-        .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; max-width: 320px; margin: auto; }
-        .mode-container { display: flex; justify-content: space-around; margin-bottom: 20px; }
-        button { width: 100%; aspect-ratio: 1/1; border-radius: 20px; border: none; background: #333; color: white; font-weight: bold; font-size: 12px; cursor: pointer; transition: 0.1s; touch-action: manipulation; }
-        button:active { background: #00ff00; color: black; transform: scale(0.95); }
-        .btn-mode { height: 50px; aspect-ratio: auto; width: 45%; background: #2196F3; }
-        .btn-stop { background: #f44336; font-size: 16px; }
-        .btn-diag { background: #444; }
+        body { background: #121212; color: white; font-family: sans-serif; text-align: center; }
+        .grid { display: grid; grid-template-columns: repeat(3, 1fr); max-width: 300px; margin: 20px auto; }
+        button { padding: 20px; font-weight: bold; border-radius: 10px; cursor: pointer; border: none; }
+        .speed { background: #333; padding: 15px; border-radius: 15px; margin: 20px auto; max-width: 300px; }
+        input { width: 100%; }
     </style>
 </head>
 <body>
-    <h2 style="color: #FF9800;">REMBES ONLINE</h2>
-    <div id="status" class="status-bar">MENGHUBUNGKAN KE CLOUD...</div>
-
-    <div class="mode-container">
-        <button class="btn-mode" onclick="send('auto')">AUTO MODE</button>
-        <button class="btn-mode" onclick="send('manual')" style="background: #607d8b;">MANUAL</button>
-    </div>
+    <h2>REMBES PRODUCTION IOT</h2>
+    <h1 id="dist">0 cm</h1>
 
     <div class="grid">
-        <button class="btn-diag" ontouchstart="send('fsl')" ontouchend="send('stop')">SERONG KIRI</button>
-        <button ontouchstart="send('up')" ontouchend="send('stop')">MAJU</button>
-        <button class="btn-diag" ontouchstart="send('fsr')" ontouchend="send('stop')">SERONG KANAN</button>
-        
-        <button ontouchstart="send('left')" ontouchend="send('stop')">KIRI</button>
-        <button class="btn-stop" onclick="send('stop')">STOP</button>
-        <button ontouchstart="send('right')" ontouchend="send('stop')">KANAN</button>
-        
-        <button class="btn-diag" ontouchstart="send('bsl')" ontouchend="send('stop')">MUNDUR L</button>
-        <button ontouchstart="send('down')" ontouchend="send('stop')">MUNDUR</button>
-        <button class="btn-diag" ontouchstart="send('bsr')" ontouchend="send('stop')">MUNDUR R</button>
+        <button onclick="send('fsl')">↖</button> <button onclick="send('up')">UP</button> <button onclick="send('fsr')">↗</button>
+        <button onclick="send('left')">L</button> <button onclick="send('stop')" style="background:red">STOP</button> <button onclick="send('right')">R</button>
+        <button onclick="send('bsl')">↙</button> <button onclick="send('down')">DN</button> <button onclick="send('bsr')">↘</button>
     </div>
 
+    <div class="speed">
+        Kecepatan: <span id="sv">750</span><br>
+        <input type="range" min="300" max="1023" value="750" oninput="document.getElementById('sv').innerText=this.value; publishConfig('speed', this.value)">
+    </div>
+
+    <button onclick="send('auto')" style="background:orange">AUTO MODE</button>
+    <button onclick="send('manual')" style="background:blue">MANUAL</button>
+
     <script>
-        // Koneksi ke Broker MQTT via WebSocket
         const client = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
-        const statusDiv = document.getElementById('status');
-
-        client.on('connect', () => {
-            statusDiv.innerText = 'TERHUBUNG KE CLOUD (READY)';
-            statusDiv.style.background = '#4CAF50';
+        
+        // Ambil IP Pengakses
+        fetch('https://api.ipify.org?format=json').then(r => r.json()).then(data => {
+            client.on('connect', () => {
+                client.publish('rembes/robot/control', 'user_ip:' + data.ip);
+                client.subscribe('rembes/robot/status');
+            });
         });
 
-        client.on('offline', () => {
-            statusDiv.innerText = 'OFFLINE - CEK INTERNET';
-            statusDiv.style.background = '#d32f2f';
+        client.on('message', (t, m) => {
+            if(m.toString().startsWith('dist:')) document.getElementById('dist').innerText = m.toString().split(':')[1] + ' cm';
         });
 
-        function send(cmd) {
-            client.publish('rembes/robot/control', cmd);
-        }
+        function send(cmd) { client.publish('rembes/robot/control', cmd); }
+        function publishConfig(type, val) { client.publish('rembes/robot/config', type + ':' + val); }
     </script>
 </body>
 </html>
